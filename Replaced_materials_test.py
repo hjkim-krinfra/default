@@ -48,18 +48,18 @@ class Replaced_materials_with_that_material_testExtension(omni.ext.IExt):
                     ui.Spacer(width=20)
                     self.material_name_model = ui.SimpleStringModel()
                     ui.StringField(model=self.material_name_model)
-                    ui.Button("Apply", clicked_fn=self.replace_material)
+                    ui.Button("Select", clicked_fn=self.select_materials_by_name)
 
                 with ui.HStack(height=10):
                     # 공백, 한줄띄기
                     ui.Spacer()
 
-                with ui.HStack():
+                with ui.HStack(height=10):
                     # 드롭다운
                     with ui.CollapsableFrame("Prim Info", height=80):
                         with ui.VStack():
                             with ui.HStack(height=10):
-                                self.select = ui.Label("None Selected", width=120, alignment=ui.Alignment.CENTER)
+                                self.select_prim = ui.Label("None Selected", width=120, alignment=ui.Alignment.CENTER)
                         
                             with ui.HStack(height=5):
                                 ui.Spacer()
@@ -68,10 +68,27 @@ class Replaced_materials_with_that_material_testExtension(omni.ext.IExt):
                                 ui.Button("Copy", clicked_fn=self.copy_selected)
                                 ui.Button("Delete", clicked_fn=self.delete_selected)
 
+                with ui.HStack(height=10):
+                    # 공백, 한줄띄기
+                    ui.Spacer()
+
+                with ui.HStack():
+                    # 드롭다운
+                    with ui.CollapsableFrame("Material Info", height=80):
+                        with ui.VStack():
+                            with ui.HStack(height=10):
+                                self.select_material = ui.Label("None Selected", width=120, alignment=ui.Alignment.CENTER)
+                        
+                            with ui.HStack(height=5):
+                                ui.Spacer()
+
+                            with ui.HStack(height=10):
+                                ui.Button("Apply", clicked_fn=self.replace_material)
+
     def copy_selected(self):
-        if self.select.text != "None Selected":
-            omni.kit.commands.execute('CopyPrim', path_from=self.select.text)
-            self.select.text = "None Selected"
+        if self.select_prim.text != "None Selected":
+            omni.kit.commands.execute('CopyPrim', path_from=self.select_prim.text)
+            self.select_prim.text = "None Selected"
         else:
             nm.post_notification(
                 "None Selected",
@@ -82,9 +99,9 @@ class Replaced_materials_with_that_material_testExtension(omni.ext.IExt):
         return
     
     def delete_selected(self):
-        if self.select.text != "None Selected":
-            omni.kit.commands.execute('DeletePrims', paths=[self.select.text])
-            self.select.text = "None Selected"
+        if self.select_prim.text != "None Selected":
+            omni.kit.commands.execute('DeletePrims', paths=[self.select_prim.text])
+            self.select_prim.text = "None Selected"
         else:
             nm.post_notification(
                 "None Selected",
@@ -96,7 +113,7 @@ class Replaced_materials_with_that_material_testExtension(omni.ext.IExt):
 
     def select_prims_by_name(self):
         stage = omni.usd.get_context().get_stage()
-        # Prime_name 입력받기 ex) Cube
+        # Prim_name 입력받기 ex) Cube
         prim_name = self.prim_name_model.get_value_as_string()
         if prim_name == "":
             nm.post_notification(
@@ -130,7 +147,7 @@ class Replaced_materials_with_that_material_testExtension(omni.ext.IExt):
         startIdx = str(found_prims[0]).find('<')
         endIdx = str(found_prims[0]).find('>')
         prims = str(found_prims)
-        self.select.text = prims[startIdx + 2: endIdx + 1]
+        self.select_prim.text = prims[startIdx + 2: endIdx + 1]
         # 경로만 가져오기
         prims = prims[startIdx + 2: endIdx + 1]
         
@@ -165,6 +182,71 @@ class Replaced_materials_with_that_material_testExtension(omni.ext.IExt):
 
         return
 
+    def select_materials_by_name(self):
+        stage = omni.usd.get_context().get_stage()
+        # Material_name 입력받기 ex) Carpaint_01
+        material_name = self.material_name_model.get_value_as_string()
+        if material_name == "":
+            nm.post_notification(
+                "Enter the material want to find",
+                hide_after_timeout=True,
+                duration=1,
+                status=nm.NotificationStatus.WARNING,
+            )
+            return
+
+        if not stage:
+            nm.post_notification(
+                "No any Stage",
+                hide_after_timeout=True,
+                duration=1,
+                status=nm.NotificationStatus.WARNING,
+            )
+            return
+        # 경로정보 가져오기
+        found_materials = [x for x in stage.Traverse() if x.GetName() == material_name]
+        if not found_materials:
+            nm.post_notification(
+                "No " + material_name + " materials in stage",
+                hide_after_timeout=True,
+                duration=1,
+                status=nm.NotificationStatus.WARNING,
+            )
+            return
+        
+        startIdx = str(found_materials[0]).find('<')
+        endIdx = str(found_materials[0]).find('>')
+        materials = str(found_materials)
+        self.select_material.text = materials[startIdx + 2: endIdx + 1]
+        # 경로만 가져오기
+        prims = prims[startIdx + 2: endIdx + 1]
+        
+        ctx = omni.usd.get_context()
+
+        selected = ctx.get_selection().get_selected_material_paths()
+
+        # 하나 선택되면 작업
+        if materials in selected and len(selected) == 1:
+            nm.post_notification(
+                "Already Selected",
+                hide_after_timeout=True,
+                duration=1,
+                status=nm.NotificationStatus.WARNING,
+            )
+            return
+
+        result = ctx.get_selection().set_selected_material_paths([materials], True)
+        
+        if result == False:
+            nm.post_notification(
+                "No any materials",
+                hide_after_timeout=True,
+                duration=1,
+                status=nm.NotificationStatus.WARNING,
+            )
+
+        return
+
     def replace_material(self):
         prim_name = self.prim_name_model.get_value_as_string()
         material_name = self.material_name_model.get_value_as_string()
@@ -173,21 +255,3 @@ class Replaced_materials_with_that_material_testExtension(omni.ext.IExt):
             # prim_path='/World/Cube*',
             material_path='/World/Looks/'+material_name)
             # https://docs.omniverse.nvidia.com/extensions/latest/ext_omnigraph/node-library/nodes/omni-graph-nodes/readprims-3.html 참고
-
-        # stage = omni.usd.get_context().get_stage()
-        # if material_name in stage.Traverse():
-        #     omni.kit.commands.execute('BindMaterialCommand',
-        #         prim_path='/World/'+prim_name,
-        #         # prim_path='/World/Cube*',
-        #         material_path='/World/Looks/'+material_name)
-        #         # https://docs.omniverse.nvidia.com/extensions/latest/ext_omnigraph/node-library/nodes/omni-graph-nodes/readprims-3.html 참고
-        # else:
-        #     nm.post_notification(
-        #     "No " + material_name + " prims in stage",
-        #     hide_after_timeout=True,
-        #     duration=1,
-        #     status=nm.NotificationStatus.WARNING,
-        #     )
-        #     return
-
-
